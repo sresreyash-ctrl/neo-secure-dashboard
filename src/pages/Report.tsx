@@ -1,5 +1,6 @@
 import { CheckCircle, XCircle, AlertTriangle, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import BackButton from "@/components/BackButton";
 
 const Report = () => {
   const handleExportReport = () => {
@@ -72,6 +73,7 @@ const Report = () => {
   return (
     <div className="flex-1 p-8 bg-background">
       <div className="max-w-6xl">
+        <BackButton />
         {/* Header */}
         <div className="flex justify-between items-start mb-8">
           <div>

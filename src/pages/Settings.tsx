@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import BackButton from "@/components/BackButton";
 
 const Settings = () => {
   const [emailNotifications, setEmailNotifications] = useState(true);
@@ -27,6 +28,7 @@ const Settings = () => {
   return (
     <div className="flex-1 p-8 bg-background">
       <div className="max-w-2xl">
+        <BackButton />
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-foreground mb-2">

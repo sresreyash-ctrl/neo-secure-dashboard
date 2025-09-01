@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import BackButton from "@/components/BackButton";
 
 const APIKey = () => {
   const [apiKey, setApiKey] = useState("");
@@ -30,6 +31,7 @@ const APIKey = () => {
   return (
     <div className="flex-1 p-8 bg-background">
       <div className="max-w-2xl">
+        <BackButton />
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-foreground mb-2">
