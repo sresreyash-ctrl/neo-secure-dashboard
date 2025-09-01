@@ -1,20 +1,25 @@
 import { Home, FileText, HelpCircle, Key, Settings, LogOut } from "lucide-react";
+import { useNavigate, useLocation } from "react-router-dom";
 
 interface SidebarProps {
   className?: string;
 }
 
 const Sidebar = ({ className = "" }: SidebarProps) => {
+  const navigate = useNavigate();
+  const location = useLocation();
+
   const menuItems = [
-    { icon: Home, label: "Home", active: true },
-    { icon: FileText, label: "Report" },
-    { icon: HelpCircle, label: "Support" },
-    { icon: Key, label: "Set OpenAI API Key" },
-    { icon: Settings, label: "Settings" },
+    { icon: Home, label: "Home", path: "/" },
+    { icon: FileText, label: "Report", path: "/report" },
+    { icon: HelpCircle, label: "Support", path: "/support" },
+    { icon: Key, label: "Set OpenAI API Key", path: "/api-key" },
+    { icon: Settings, label: "Settings", path: "/settings" },
   ];
 
-  const handleMenuItemClick = (label: string) => {
+  const handleMenuItemClick = (path: string, label: string) => {
     console.log(`${label} clicked`);
+    navigate(path);
   };
 
   const handleLogoutClick = () => {
@@ -30,8 +35,8 @@ const Sidebar = ({ className = "" }: SidebarProps) => {
             <span className="text-sidebar-primary-foreground font-bold text-sm">N</span>
           </div>
           <div>
-            <div className="text-sm font-semibold uppercase tracking-wide">neo_security</div>
-            <div className="text-xs opacity-75">DATA SECURITY POSTURE MANAGEMENT</div>
+            <div className="text-sm font-semibold uppercase tracking-wide">NEO_SECURITY</div>
+            <div className="text-xs opacity-75">CLOUD ATTACK SIMULATION PLATFORM</div>
           </div>
         </div>
       </div>
@@ -44,9 +49,9 @@ const Sidebar = ({ className = "" }: SidebarProps) => {
             return (
               <li key={item.label}>
                 <button
-                  onClick={() => handleMenuItemClick(item.label)}
+                  onClick={() => handleMenuItemClick(item.path, item.label)}
                   className={`w-full flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground ${
-                    item.active 
+                    location.pathname === item.path 
                       ? "bg-sidebar-primary text-sidebar-primary-foreground" 
                       : "text-sidebar-foreground"
                   }`}
