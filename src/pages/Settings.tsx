@@ -2,17 +2,19 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import BackButton from "@/components/BackButton";
+import { useToast } from "@/hooks/use-toast";
+import axios from "axios";
 
 const Settings = () => {
+  const { toast } = useToast();
   const [awsConfig, setAwsConfig] = useState({
     accessKeyId: "",
     secretAccessKey: "",
-    region: "us-east-1",
-    s3BucketName: ""
+    region: ""
   });
 
   const handleAwsConfigChange = (field: string, value: string) => {
@@ -22,11 +24,26 @@ const Settings = () => {
     }));
   };
 
-  const handleSaveAwsConfig = () => {
-    // Store AWS configuration in localStorage
-    localStorage.setItem('awsConfig', JSON.stringify(awsConfig));
-    console.log("AWS Configuration saved:", awsConfig);
-  };
+  const handleSaveAwsConfig = async () => {
+  try {
+    const response = await axios.post("http://localhost:8000/save-aws-config", awsConfig);
+
+    if (response.status === 200) {
+      console.log("AWS Configuration saved to backend .env");
+      toast({
+        title: "Success!",
+        description: "AWS configuration saved successfully!",
+      });
+    }
+  } catch (err: any) {
+    console.error("Error saving AWS config:", err);
+    toast({
+      title: "Error",
+      description: "Failed to save AWS config: " + (err.response?.data?.error || err.message),
+      variant: "destructive",
+    });
+  }
+};
 
   return (
     <div className="flex-1 p-8 bg-background">
@@ -89,36 +106,12 @@ const Settings = () => {
 
                 <div>
                   <Label htmlFor="region">Region</Label>
-                  <Select 
-                    value={awsConfig.region} 
-                    onValueChange={(value) => handleAwsConfigChange('region', value)}
-                  >
-                    <SelectTrigger className="w-full mt-1">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="us-east-1">us-east-1</SelectItem>
-                      <SelectItem value="us-east-2">us-east-2</SelectItem>
-                      <SelectItem value="us-west-1">us-west-1</SelectItem>
-                      <SelectItem value="us-west-2">us-west-2</SelectItem>
-                      <SelectItem value="eu-west-1">eu-west-1</SelectItem>
-                      <SelectItem value="eu-west-2">eu-west-2</SelectItem>
-                      <SelectItem value="eu-central-1">eu-central-1</SelectItem>
-                      <SelectItem value="ap-southeast-1">ap-southeast-1</SelectItem>
-                      <SelectItem value="ap-southeast-2">ap-southeast-2</SelectItem>
-                      <SelectItem value="ap-northeast-1">ap-northeast-1</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label htmlFor="s3-bucket-name">S3 Bucket Name</Label>
                   <Input
-                    id="s3-bucket-name"
+                    id="region"
                     type="text"
-                    placeholder="Enter your S3 bucket name"
-                    value={awsConfig.s3BucketName}
-                    onChange={(e) => handleAwsConfigChange('s3BucketName', e.target.value)}
+                    placeholder="Enter your AWS region (e.g., us-east-1)"
+                    value={awsConfig.region}
+                    onChange={(e) => handleAwsConfigChange('region', e.target.value)}
                     className="mt-1"
                   />
                 </div>

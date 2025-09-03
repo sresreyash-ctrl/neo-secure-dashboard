@@ -1,11 +1,21 @@
 import os
 import subprocess
-from fastapi import FastAPI
+from fastapi import FastAPI, Body
 from fastapi.responses import JSONResponse
 import logging
 import time
+from fastapi.middleware.cors import CORSMiddleware
+
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # you can restrict to ["http://localhost:3000"] if React runs there
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 V2_DIR = os.path.join(os.path.dirname(__file__), '..', 'v2')
 EXE_PATH = os.path.join(V2_DIR, 'neova-apexred.exe')
@@ -97,3 +107,20 @@ def undo_attack_s3():
 @app.get("/ping")
 def ping():
     return {"message": "pong"}
+
+ENV_FILE = os.path.join(os.path.dirname(__file__), ".env")
+
+@app.post("/save-aws-config")
+def save_aws_config(config: dict = Body(...)):
+    try:
+        # Format env content
+        env_content = [
+            f"AWS_ACCESS_KEY_ID={config.get('accessKeyId', '')}",
+            f"AWS_SECRET_ACCESS_KEY={config.get('secretAccessKey', '')}",
+            f"AWS_REGION={config.get('region', '')}",
+        ]
+        with open(ENV_FILE, "w") as f:
+            f.write("\n".join(env_content))
+        return JSONResponse({"message": "AWS configuration saved to .env successfully"})
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
