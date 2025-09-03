@@ -1,0 +1,2 @@
+*.exe filter=lfs diff=lfs merge=lfs -text
+neova-apexred/bin/neova-apexred filter=lfs diff=lfs merge=lfs -text
