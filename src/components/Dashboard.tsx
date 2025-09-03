@@ -1,11 +1,8 @@
-import { Play, Download } from "lucide-react";
+import { Download } from "lucide-react";
 import DashboardCard from "./DashboardCard";
+import ExpandableAttackCard from "./ExpandableAttackCard";
 
 const Dashboard = () => {
-  const handleRunAttack = () => {
-    console.log("Run Attack clicked");
-  };
-
   const handleDownloadReport = () => {
     console.log("Download Report clicked");
   };
@@ -13,23 +10,6 @@ const Dashboard = () => {
   const handleResetConfiguration = () => {
     console.log("Reset clicked");
   };
-
-  const cards = [
-    {
-      title: "Run Attack",
-      description: "Execute penetration testing and vulnerability assessment.",
-      buttonText: "Run Attack",
-      icon: Play,
-      onButtonClick: handleRunAttack,
-    },
-    {
-      title: "Download Report",
-      description: "Download a full PDF report of scan results.",
-      buttonText: "Download Report", 
-      icon: Download,
-      onButtonClick: handleDownloadReport,
-    },
-  ];
 
   return (
     <div className="flex-1 p-8 bg-background">
@@ -46,16 +26,14 @@ const Dashboard = () => {
 
         {/* Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          {cards.map((card) => (
-            <DashboardCard
-              key={card.title}
-              title={card.title}
-              description={card.description}
-              buttonText={card.buttonText}
-              icon={card.icon}
-              onButtonClick={card.onButtonClick}
-            />
-          ))}
+          <ExpandableAttackCard />
+          <DashboardCard
+            title="Download Report"
+            description="Download a full PDF report of scan results."
+            buttonText="Download Report"
+            icon={Download}
+            onButtonClick={handleDownloadReport}
+          />
         </div>
 
         {/* Reset Configuration Button */}

@@ -1,0 +1,145 @@
+import { useState } from "react";
+import { Play, ChevronDown, ChevronUp, Loader2, CheckCircle, XCircle } from "lucide-react";
+import AttackTechniquesTable from "./AttackTechniquesTable";
+
+type AttackStatus = 'idle' | 'running' | 'success' | 'failed';
+
+const ExpandableAttackCard = () => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [selectedTechniques, setSelectedTechniques] = useState<string[]>([]);
+  const [attackStatus, setAttackStatus] = useState<AttackStatus>('idle');
+
+  const handleCardClick = () => {
+    if (attackStatus === 'idle') {
+      setIsExpanded(!isExpanded);
+    }
+  };
+
+  const handleRunAttack = async () => {
+    if (selectedTechniques.length === 0) return;
+    
+    console.log("Running attack with techniques:", selectedTechniques);
+    setAttackStatus('running');
+    
+    // Simulate attack execution (30 seconds to 2 minutes)
+    const duration = Math.random() * 90000 + 30000; // 30s to 2m
+    
+    setTimeout(() => {
+      // Random success/failure for demo
+      const success = Math.random() > 0.3; // 70% success rate
+      setAttackStatus(success ? 'success' : 'failed');
+      
+      // Reset after 5 seconds
+      setTimeout(() => {
+        setAttackStatus('idle');
+        setIsExpanded(false);
+        setSelectedTechniques([]);
+      }, 5000);
+    }, duration);
+  };
+
+  const getStatusDisplay = () => {
+    switch (attackStatus) {
+      case 'running':
+        return (
+          <div className="flex items-center gap-2 text-primary">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span>Attack in Progress...</span>
+          </div>
+        );
+      case 'success':
+        return (
+          <div className="flex items-center gap-2 text-green-600">
+            <CheckCircle className="h-4 w-4" />
+            <span>Attack Completed Successfully</span>
+          </div>
+        );
+      case 'failed':
+        return (
+          <div className="flex items-center gap-2 text-red-600">
+            <XCircle className="h-4 w-4" />
+            <span>Attack Failed</span>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className="bg-card border border-border rounded-lg shadow-card hover:shadow-hover transition-shadow">
+      {/* Card Header */}
+      <div 
+        className="p-6 cursor-pointer"
+        onClick={handleCardClick}
+      >
+        <div className="flex items-start gap-4">
+          <div className="text-primary">
+            <Play size={24} />
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-card-foreground mb-2">
+                Run Attack
+              </h3>
+              {attackStatus === 'idle' && (
+                <div className="text-muted-foreground">
+                  {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                </div>
+              )}
+            </div>
+            <p className="text-muted-foreground text-sm mb-4">
+              Execute penetration testing and vulnerability assessment.
+            </p>
+            
+            {/* Status Display */}
+            {getStatusDisplay()}
+            
+            {/* Initial Run Attack Button (only when not expanded) */}
+            {!isExpanded && attackStatus === 'idle' && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleCardClick();
+                }}
+                className="w-full bg-primary text-primary-foreground px-4 py-2 rounded-lg font-medium hover:bg-primary-hover transition-colors"
+              >
+                Run Attack
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Expandable Content */}
+      {isExpanded && attackStatus === 'idle' && (
+        <div className="px-6 pb-6 border-t border-border">
+          <div className="pt-6 space-y-6">
+            <div>
+              <h4 className="text-md font-semibold text-card-foreground mb-4">
+                Select Attack Techniques
+              </h4>
+              <AttackTechniquesTable
+                selectedTechniques={selectedTechniques}
+                onSelectionChange={setSelectedTechniques}
+              />
+            </div>
+            
+            {/* Run Attack Button */}
+            <div className="flex justify-center">
+              <button
+                onClick={handleRunAttack}
+                disabled={selectedTechniques.length === 0}
+                className="bg-primary text-primary-foreground px-8 py-3 rounded-lg font-medium hover:bg-primary-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Run Attack ({selectedTechniques.length} technique{selectedTechniques.length !== 1 ? 's' : ''})
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default ExpandableAttackCard;
