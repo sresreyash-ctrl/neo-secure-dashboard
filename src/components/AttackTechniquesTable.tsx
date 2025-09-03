@@ -56,11 +56,11 @@ const attackTechniques: AttackTechnique[] = [
 ];
 
 interface AttackTechniquesTableProps {
-  selectedTechniques: string[];
-  onSelectionChange: (selectedIds: string[]) => void;
+  selectedTechnique: string | null;
+  onSelectionChange: (selectedId: string | null) => void;
 }
 
-const AttackTechniquesTable = ({ selectedTechniques, onSelectionChange }: AttackTechniquesTableProps) => {
+const AttackTechniquesTable = ({ selectedTechnique, onSelectionChange }: AttackTechniquesTableProps) => {
   const [searchTerm, setSearchTerm] = useState("");
 
   const filteredTechniques = useMemo(() => {
@@ -75,20 +75,8 @@ const AttackTechniquesTable = ({ selectedTechniques, onSelectionChange }: Attack
     );
   }, [searchTerm]);
 
-  const handleTechniqueToggle = (techniqueId: string) => {
-    const newSelection = selectedTechniques.includes(techniqueId)
-      ? selectedTechniques.filter(id => id !== techniqueId)
-      : [...selectedTechniques, techniqueId];
-    
-    onSelectionChange(newSelection);
-  };
-
-  const handleSelectAll = () => {
-    if (selectedTechniques.length === filteredTechniques.length) {
-      onSelectionChange([]);
-    } else {
-      onSelectionChange(filteredTechniques.map(t => t.id));
-    }
+  const handleTechniqueSelect = (techniqueId: string) => {
+    onSelectionChange(selectedTechnique === techniqueId ? null : techniqueId);
   };
 
   return (
@@ -105,16 +93,10 @@ const AttackTechniquesTable = ({ selectedTechniques, onSelectionChange }: Attack
         />
       </div>
 
-      {/* Select All Button */}
+      {/* Selection Status */}
       <div className="flex items-center gap-2">
-        <button
-          onClick={handleSelectAll}
-          className="text-sm text-primary hover:text-primary-hover font-medium"
-        >
-          {selectedTechniques.length === filteredTechniques.length ? "Deselect All" : "Select All"}
-        </button>
         <span className="text-muted-foreground text-sm">
-          ({selectedTechniques.length} selected)
+          {selectedTechnique ? "1 technique selected" : "No technique selected"}
         </span>
       </div>
 
@@ -122,30 +104,24 @@ const AttackTechniquesTable = ({ selectedTechniques, onSelectionChange }: Attack
       <div className="border border-border rounded-lg overflow-hidden">
         <div className="max-h-96 overflow-y-auto">
           <table className="w-full">
-            <thead className="bg-muted sticky top-0">
-              <tr>
-                <th className="text-left p-3 font-medium text-muted-foreground w-12">
-                  <input
-                    type="checkbox"
-                    checked={selectedTechniques.length === filteredTechniques.length && filteredTechniques.length > 0}
-                    onChange={handleSelectAll}
-                    className="rounded border-border"
-                  />
-                </th>
-                <th className="text-left p-3 font-medium text-muted-foreground">Technique ID</th>
-                <th className="text-left p-3 font-medium text-muted-foreground">Technique Name</th>
-                <th className="text-left p-3 font-medium text-muted-foreground">Platform</th>
-                <th className="text-left p-3 font-medium text-muted-foreground">MITRE ATT&CK Tactic</th>
-              </tr>
-            </thead>
+                         <thead className="bg-muted sticky top-0">
+               <tr>
+                 <th className="text-left p-3 font-medium text-muted-foreground w-12"></th>
+                 <th className="text-left p-3 font-medium text-muted-foreground">Technique ID</th>
+                 <th className="text-left p-3 font-medium text-muted-foreground">Technique Name</th>
+                 <th className="text-left p-3 font-medium text-muted-foreground">Platform</th>
+                 <th className="text-left p-3 font-medium text-muted-foreground">MITRE ATT&CK Tactic</th>
+               </tr>
+             </thead>
             <tbody>
               {filteredTechniques.map((technique) => (
                 <tr key={technique.id} className="border-t border-border hover:bg-muted/50">
                   <td className="p-3">
                     <input
-                      type="checkbox"
-                      checked={selectedTechniques.includes(technique.id)}
-                      onChange={() => handleTechniqueToggle(technique.id)}
+                      type="radio"
+                      name="attack-technique"
+                      checked={selectedTechnique === technique.id}
+                      onChange={() => handleTechniqueSelect(technique.id)}
                       className="rounded border-border"
                     />
                   </td>

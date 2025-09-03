@@ -6,7 +6,7 @@ type AttackStatus = 'idle' | 'running' | 'success' | 'failed';
 
 const ExpandableAttackCard = () => {
   const [isExpanded, setIsExpanded] = useState(false);
-  const [selectedTechniques, setSelectedTechniques] = useState<string[]>([]);
+  const [selectedTechnique, setSelectedTechnique] = useState<string | null>(null);
   const [attackStatus, setAttackStatus] = useState<AttackStatus>('idle');
 
   const handleCardClick = () => {
@@ -16,9 +16,9 @@ const ExpandableAttackCard = () => {
   };
 
   const handleRunAttack = async () => {
-    if (selectedTechniques.length === 0) return;
+    if (!selectedTechnique) return;
     
-    console.log("Running attack with techniques:", selectedTechniques);
+    console.log("Running attack with technique:", selectedTechnique);
     setAttackStatus('running');
     
     // Simulate attack execution (30 seconds to 2 minutes)
@@ -33,7 +33,7 @@ const ExpandableAttackCard = () => {
       setTimeout(() => {
         setAttackStatus('idle');
         setIsExpanded(false);
-        setSelectedTechniques([]);
+        setSelectedTechnique(null);
       }, 5000);
     }, duration);
   };
@@ -117,11 +117,11 @@ const ExpandableAttackCard = () => {
           <div className="pt-6 space-y-6">
             <div>
               <h4 className="text-md font-semibold text-card-foreground mb-4">
-                Select Attack Techniques
+                Select Attack Technique
               </h4>
               <AttackTechniquesTable
-                selectedTechniques={selectedTechniques}
-                onSelectionChange={setSelectedTechniques}
+                selectedTechnique={selectedTechnique}
+                onSelectionChange={setSelectedTechnique}
               />
             </div>
             
@@ -129,10 +129,10 @@ const ExpandableAttackCard = () => {
             <div className="flex justify-center">
               <button
                 onClick={handleRunAttack}
-                disabled={selectedTechniques.length === 0}
+                disabled={!selectedTechnique}
                 className="bg-primary text-primary-foreground px-8 py-3 rounded-lg font-medium hover:bg-primary-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Run Attack ({selectedTechniques.length} technique{selectedTechniques.length !== 1 ? 's' : ''})
+                Run Attack
               </button>
             </div>
           </div>
