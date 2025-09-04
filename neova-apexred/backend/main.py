@@ -16,6 +16,10 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import mm
 from reportlab.lib.utils import simpleSplit
+from reportlab.lib import colors
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.enums import TA_LEFT, TA_CENTER
 
 app = FastAPI()
 
@@ -295,8 +299,277 @@ def fetch_cloudtrail_logs(payload: dict = Body(...)):
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
-# Helper: Render markdown-ish text to a simple PDF using ReportLab
+# Improved helper: Render markdown to PDF with better table formatting
 def _render_markdown_to_pdf(markdown_text: str, pdf_path: str) -> None:
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.units import mm
+    from reportlab.lib.utils import simpleSplit
+    from reportlab.lib import colors
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.enums import TA_LEFT, TA_CENTER
+    import re
+    
+    doc = SimpleDocTemplate(pdf_path, pagesize=A4, 
+                          rightMargin=12*mm, leftMargin=12*mm,
+                          topMargin=15*mm, bottomMargin=15*mm)
+    
+    styles = getSampleStyleSheet()
+    
+    # Custom styles
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=16,
+        spaceAfter=12,
+        textColor=colors.red,
+        alignment=TA_CENTER
+    )
+    
+    subtitle_style = ParagraphStyle(
+        'CustomSubtitle',
+        parent=styles['Heading3'],
+        fontSize=12,
+        spaceAfter=8,
+        textColor=colors.black,
+        alignment=TA_CENTER
+    )
+    
+    heading_style = ParagraphStyle(
+        'CustomHeading',
+        parent=styles['Heading2'],
+        fontSize=11,
+        spaceAfter=6,
+        spaceBefore=12,
+        textColor=colors.darkblue
+    )
+    
+    normal_style = ParagraphStyle(
+        'CustomNormal',
+        parent=styles['Normal'],
+        fontSize=9,
+        spaceAfter=6,
+        alignment=TA_LEFT
+    )
+
+    def clean_table_cell(text, is_header=False):
+        """Clean table cell text specifically"""
+        if not text:
+            return ""
+        
+        # Remove all types of formatting markers
+        text = str(text).strip()
+        
+        # Remove emojis first
+        emoji_chars = ['ðŸ"´', 'âš ï¸', 'âœ…', 'âŒ', 'ðŸ"Š', 'ðŸ"', '•']
+        for emoji in emoji_chars:
+            text = text.replace(emoji, '')
+        
+        if is_header:
+            # For headers: remove ALL formatting markers
+            # Remove **<b>text</b>** -> text
+            text = re.sub(r'\*\*<b>(.*?)</b>\*\*', r'\1', text)
+            # Remove **text** -> text
+            text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
+            # Remove <b>text</b> -> text
+            text = re.sub(r'<b>(.*?)</b>', r'\1', text)
+            # Remove any remaining HTML tags
+            text = re.sub(r'<[^>]*>', '', text)
+            # Remove any remaining asterisks
+            text = text.replace('*', '').replace('**', '')
+        else:
+            # For data cells: clean but preserve some formatting
+            # Remove problematic combinations
+            text = re.sub(r'\*\*<b>(.*?)</b>\*\*', r'\1', text)
+            text = re.sub(r'<b>(.*?)</b>', r'\1', text)
+            # Simple ** to bold conversion
+            text = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', text)
+        
+        # Final cleanup
+        text = text.replace('â€"', '-').replace('â€¢', '•')
+        text = ' '.join(text.split())  # Remove extra whitespace
+        
+        return text.strip()
+
+    def clean_text_for_pdf(text):
+        """Clean regular paragraph text"""
+        if not text:
+            return ""
+            
+        # Remove emojis
+        emoji_chars = ['ðŸ"´', 'âš ï¸', 'âœ…', 'âŒ', 'ðŸ"Š', 'ðŸ"']
+        for emoji in emoji_chars:
+            text = text.replace(emoji, '')
+        
+        # Simple bold conversion
+        text = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', text)
+        text = text.replace('â€"', '-').replace('â€¢', '•')
+        
+        return text.strip()
+    
+    story = []
+    lines = markdown_text.split('\n')
+    i = 0
+    
+    while i < len(lines):
+        line = lines[i].strip()
+        
+        if not line:
+            story.append(Spacer(1, 6))
+            i += 1
+            continue
+            
+        # Title (H1)
+        if line.startswith('# '):
+            title_text = clean_text_for_pdf(line[2:])
+            story.append(Paragraph(title_text, title_style))
+            
+        # Subtitle (H3 with **)
+        elif line.startswith('### **') and line.endswith('**'):
+            subtitle_text = clean_text_for_pdf(line[6:-2])
+            story.append(Paragraph(f"<i>{subtitle_text}</i>", subtitle_style))
+            
+        # Headings (H2)
+        elif line.startswith('## '):
+            heading_text = clean_text_for_pdf(line[3:])
+            story.append(Paragraph(heading_text, heading_style))
+            
+        # Table detection
+        elif line.startswith('|') and '|' in line:
+            table_data = []
+            is_first_data_row = True
+            
+            # Collect all table rows
+            while i < len(lines) and lines[i].strip().startswith('|'):
+                row_line = lines[i].strip()
+                # Skip separator rows (containing ---)
+                if '---' not in row_line:
+                    # Split by | and clean up
+                    raw_cells = row_line.split('|')[1:-1]  # Remove first and last empty elements
+                    
+                    if raw_cells:  # Only process non-empty rows
+                        cleaned_cells = []
+                        
+                        for j, cell in enumerate(raw_cells):
+                            cell = cell.strip()
+                            
+                            # Check if this is a header row by looking for **<b> patterns
+                            is_header_cell = '**<b>' in cell or (is_first_data_row and ('**' in cell or '<b>' in cell))
+                            
+                            cleaned_cell = clean_table_cell(cell, is_header=is_header_cell)
+                            
+                            # Create paragraph for text wrapping, with different styles for headers vs data
+                            if is_header_cell:
+                                cell_style = ParagraphStyle(
+                                    'HeaderCell',
+                                    parent=styles['Normal'],
+                                    fontSize=8,
+                                    leading=10,
+                                    fontName='Helvetica-Bold',
+                                    alignment=TA_CENTER
+                                )
+                            else:
+                                cell_style = ParagraphStyle(
+                                    'DataCell',
+                                    parent=styles['Normal'],
+                                    fontSize=7,
+                                    leading=9,
+                                    fontName='Helvetica'
+                                )
+                            
+                            # Wrap all cells in Paragraphs for better text handling
+                            cell_para = Paragraph(cleaned_cell, cell_style)
+                            cleaned_cells.append(cell_para)
+                        
+                        table_data.append(cleaned_cells)
+                        is_first_data_row = False
+                
+                i += 1
+            i -= 1  # Adjust for the outer loop increment
+            
+            if table_data:
+                # Calculate column widths
+                num_cols = len(table_data[0]) if table_data else 0
+                if num_cols > 0:
+                    # Available width (accounting for margins)
+                    page_width = A4[0] - 24*mm  # Total margins
+                    
+                    # Define column widths for your 6-column table
+                    if num_cols == 6:
+                        col_widths = [
+                            page_width * 0.18,  # Technique ID
+                            page_width * 0.12,  # Tactic
+                            page_width * 0.15,  # Time
+                            page_width * 0.18,  # Actor
+                            page_width * 0.22,  # Trail Targeted
+                            page_width * 0.15   # Result
+                        ]
+                    else:
+                        # Default: equal widths
+                        col_widths = [page_width / num_cols] * num_cols
+                    
+                    # Create table with specified column widths
+                    table = Table(table_data, colWidths=col_widths, repeatRows=1)
+                    
+                    # Table styling
+                    table_style = [
+                        # Header row (first row)
+                        ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
+                        ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+                        
+                        # All cells
+                        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                        
+                        # Padding - reduced for better fit
+                        ('TOPPADDING', (0, 0), (-1, -1), 3),
+                        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+                        ('LEFTPADDING', (0, 0), (-1, -1), 2),
+                        ('RIGHTPADDING', (0, 0), (-1, -1), 2),
+                        
+                        # Borders
+                        ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+                        
+                        # Alternating row colors (skip header)
+                        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.lightgrey])
+                    ]
+                    
+                    table.setStyle(TableStyle(table_style))
+                    story.append(table)
+                    story.append(Spacer(1, 12))
+                
+        # Bullet points
+        elif line.startswith('- ') or line.startswith('* '):
+            bullet_text = clean_text_for_pdf(line[2:])
+            story.append(Paragraph(f"• {bullet_text}", normal_style))
+            
+        # Regular paragraphs
+        else:
+            if line:
+                clean_line = clean_text_for_pdf(line)
+                if clean_line:  # Only add non-empty paragraphs
+                    story.append(Paragraph(clean_line, normal_style))
+        
+        i += 1
+    
+    try:
+        doc.build(story)
+        logging.info(f"PDF successfully generated at {pdf_path}")
+    except Exception as e:
+        # Fallback: create a simpler PDF if complex formatting fails
+        logging.warning(f"Complex PDF generation failed: {e}. Creating simple version.")
+        _render_simple_pdf(markdown_text, pdf_path)
+
+
+def _render_simple_pdf(markdown_text: str, pdf_path: str) -> None:
+    """Fallback simple PDF renderer without complex HTML formatting"""
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import mm
+    from reportlab.lib.utils import simpleSplit
+    import re
+    
     c = canvas.Canvas(pdf_path, pagesize=A4)
     width, height = A4
     left_margin = 20 * mm
@@ -308,44 +581,63 @@ def _render_markdown_to_pdf(markdown_text: str, pdf_path: str) -> None:
     y = height - top_margin
     line_height = 12
 
-    def draw_wrapped(text: str, font_name: str = "Helvetica", font_size: int = 10, bold: bool = False):
+    def clean_simple_text(text):
+        """Simple text cleaning for fallback PDF"""
+        # Remove emojis and markdown
+        text = re.sub(r'[^\x00-\x7F]+', '', text)  # Remove non-ASCII
+        text = text.replace('**', '').replace('*', '')
+        text = re.sub(r'<[^>]+>', '', text)  # Remove HTML tags
+        return text.strip()
+
+    def draw_wrapped_text(text: str, font_name: str = "Helvetica", font_size: int = 10):
         nonlocal y
-        if bold:
-            font_name = "Helvetica-Bold"
+        clean_text = clean_simple_text(text)
+        
         c.setFont(font_name, font_size)
-        lines = simpleSplit(text, font_name, font_size, usable_width)
+        lines = simpleSplit(clean_text, font_name, font_size, usable_width)
         for line in lines:
-            if y <= bottom_margin:
+            if y <= bottom_margin + 20:
                 c.showPage()
                 y = height - top_margin
                 c.setFont(font_name, font_size)
             c.drawString(left_margin, y, line)
             y -= line_height
 
-    # Very minimal markdown cues: headings and bullets
-    for raw_line in markdown_text.splitlines():
-        line = raw_line.rstrip()
+    # Process lines
+    for line in markdown_text.splitlines():
+        line = line.strip()
         if not line:
-            y -= line_height
+            y -= line_height // 2
             continue
-        if line.startswith("### "):
-            draw_wrapped(line[4:], font_size=12, bold=True)
-            y -= 2
-        elif line.startswith("## "):
-            draw_wrapped(line[3:], font_size=14, bold=True)
-            y -= 4
-        elif line.startswith("# "):
-            draw_wrapped(line[2:], font_size=16, bold=True)
-            y -= 6
-        elif line.startswith("- ") or line.startswith("* "):
-            draw_wrapped("• " + line[2:], font_size=10)
-        elif line.startswith("|") and line.endswith("|"):
-            # rudimentary table row rendering
-            draw_wrapped(line.replace("|", "|"))
+            
+        if line.startswith('# '):
+            draw_wrapped_text(line[2:], "Helvetica-Bold", 14)
+            y -= 5
+        elif line.startswith('### **') and line.endswith('**'):
+            draw_wrapped_text(line[6:-2], "Helvetica-Bold", 11)
+            y -= 3
+        elif line.startswith('## '):
+            draw_wrapped_text(line[3:], "Helvetica-Bold", 11)
+            y -= 3
+        elif line.startswith('|') and '|' in line and not ('---' in line):
+            # Simple table row
+            cells = [cell.strip() for cell in line.split('|')[1:-1]]
+            if cells:
+                # Clean and truncate cells for simple display
+                clean_cells = []
+                for cell in cells:
+                    cleaned = clean_simple_text(cell)
+                    # Truncate long cells
+                    if len(cleaned) > 15:
+                        cleaned = cleaned[:12] + "..."
+                    clean_cells.append(cleaned)
+                row_text = " | ".join(clean_cells)
+                draw_wrapped_text(row_text, "Helvetica", 8)
+        elif line.startswith('- ') or line.startswith('* '):
+            draw_wrapped_text(f"• {line[2:]}", "Helvetica", 9)
         else:
-            draw_wrapped(line)
+            draw_wrapped_text(line, "Helvetica", 9)
 
-    c.showPage()
     c.save()
 
 
@@ -372,15 +664,114 @@ def generate_report(payload: dict = Body(...)):
         with open(cloudtrail_logs_path, "r", encoding="utf-8") as f:
             cloudtrail_json = json.load(f)
 
-        # Build the system/user prompt per user spec
-        system_prompt = (
-            "You are a senior cloud security log analyst. You will read two JSON inputs and produce a concise, UI-ready incident report about attempts to disable AWS CloudTrail logging. You must be accurate, correlate the logs, and avoid speculation."
-        )
-
-        full_prompt = f"""ROLE
+        # Build the updated prompt (without JSON summary)
+        full_prompt = f"""
+ROLE
 You are a senior cloud security log analyst. You will read two JSON inputs and produce a concise, UI-ready incident report about attempts to disable AWS CloudTrail logging. You must be accurate, correlate the logs, and avoid speculation.
 
 INPUTS
+- ATTACK_LOG_JSON: JSON from the attack framework (file like: aws.defense-evasion.cloudtrail-stop.json). This contains fields such as:
+  {{
+    "technique_id": "aws.defense-evasion.cloudtrail-stop",
+    "warmup_output": [ ...lines... ],
+    "detonate_output": [ ...lines... ],
+    "detonate_error": [ ...lines... ],
+    "cleanup_output": [ ...lines... ],
+    "cleanup_error": [ ...lines... ]
+  }}
+
+- CLOUDTRAIL_JSON: Raw AWS CloudTrail event records (file like: CloudTrail_StopLogging_Attack_Logs.json). It should contain one or more objects/records with fields typically including:
+  - eventTime (UTC or ISO)
+  - eventName (e.g., StopLogging, StartLogging)
+  - userIdentity.userName (e.g., stratus-redteam-cli-user)
+  - userIdentity.accessKeyId
+  - sourceIPAddress
+  - userAgent
+  - requestParameters.name (trail name) OR resources with a CloudTrail trail ARN
+  - errorCode / errorMessage (if any)
+(If the exact schema varies, infer the above from equivalent fields.)
+
+TASK
+1) Parse both inputs.
+2) Normalize and correlate:
+   - Identify all StopLogging and StartLogging events from CLOUDTRAIL_JSON.
+   - Extract the actor (IAM user), accessKeyId, source IPs, user agent, event times, trail names, and result (success/failure).
+   - From ATTACK_LOG_JSON, extract:
+     - technique_id
+     - clear start time of detonation, any explicit "successfully stopped logging" markers, and cleanup/restoration markers.
+     - duration (if present in text), otherwise compute if start/end are present.
+3) Timezones:
+   - Convert all displayed times to IST (UTC+05:30) and label them "IST".
+   - If the source time is already local, still present the final display in IST.
+4) Determine ATTACK STATUS:
+   - "Successful" if there is evidence that CloudTrail logging was stopped (e.g., ATTACK_LOG_JSON states success AND/OR CLOUDTRAIL_JSON shows StopLogging success for a specific trail).
+   - "Failed" if StopLogging was attempted but no successful stop occurred (only errors).
+   - "Partial" if mixed (some trails failed, at least one succeeded) or if the attack log claims success but CloudTrail has no confirmatory evidence.
+5) Produce a descriptive, analyst-style narrative (no heavy tables) followed by a single compact evidence table. Keep it precise, readable, and suitable for a dashboard card. 
+6) Do NOT use or mention the word "simulation" anywhere. If needed, you may say "red-team activity" or simply "attack".
+7) Redaction & fallbacks:
+   - Redact accessKeyId to the last 4 characters (e.g., AKIA…X43PFZ → AKIA…PFZ).
+   - If any field is missing, use "Unknown".
+   - Do not invent trails or times that do not exist in the inputs.
+
+OUTPUT FORMAT:
+Return a markdown report with the following exact structure:
+
+TITLE (H1):
+🔴 CloudTrail Under Fire: Logging Disabled Attempt Detected
+
+SUBTITLE (H3):
+**Attack: AWS Defense Evasion — Stop CloudTrail Trail**
+
+BODY (Narrative paragraphs):
+- Paragraph 1: State when the attack began (IST), the technique_id, who performed it (IAM user), and that the goal is disabling CloudTrail logging.
+- Paragraph 2: State the explicit Attack Status line in bold, with a concise reason. Example:
+  ⚠️ **Attack Status:** ✅ **Successful** — CloudTrail logging was stopped for the trail `<trail-name>`.
+  If restored, note that logging was later restarted as part of cleanup.
+- Paragraph 3: Summarize key evidence from CloudTrail: mention at least one StopLogging event time (IST), source IP(s), and the user agent. Mention any failed attempts (e.g., TrailNotFoundException) as probing.
+- Paragraph 4: Mention overall duration (approximate), start/end events from ATTACK_LOG_JSON, and that cleanup restarted logging if present.
+
+TABLE (H2):
+## 📊 Attack Evidence
+
+Required columns and exact order:
+| **Technique ID** | **Tactic** | **Time (IST)** | **Actor** | **Trail Targeted** | **Result** |
+
+Rows:
+- Populate rows from corroborated events (e.g., StopLogging successes and notable failures). Keep 3—5 most relevant rows (most recent or most critical). Results should be:
+  - "✅ Success — Logging Stopped" for confirmed stops
+  - "❌ Failed — <ErrorCode>" for failures
+  - If mixed/unknown, use "⚠️ Partial/Unknown — <short note>"
+
+KEY INSIGHTS (H2):
+## 🔍 Key Insights
+- **Objective:** Disable CloudTrail logging to reduce detection visibility.
+- **Actor:** <IAM user or Unknown> (access key: <masked>)
+- **Source IPs:** <comma-separated unique list, up to 3; if more, add "+N more">
+- **Impact:** <short line, e.g., "Logging was successfully stopped on <trail-name>" or "No confirmed stop">
+- **Severity:** High
+
+ANALYST NOTE (H2):
+Short paragraph (1—2 sentences) warning that disabling CloudTrail creates monitoring blind spots and should be alerted on. No speculation.
+
+VALIDATION & EDGE CASES
+- If ATTACK_LOG_JSON claims success but no corroborating StopLogging in CLOUDTRAIL_JSON, set attack_status to "Partial" and explain briefly in the narrative.
+- If CLOUDTRAIL_JSON shows StopLogging but ATTACK_LOG_JSON is missing/empty, still report as "Successful" (evidence: CloudTrail).
+- If all attempts failed (errors only), set attack_status to "Failed" and reflect this in both narrative and table.
+- If StartLogging is present in cleanup, mention restoration explicitly.
+- Always convert final displayed times to IST and label them "IST".
+
+STYLE GUIDE
+- Be concise, factual, and professional.
+- Avoid the word "simulation".
+- Use only the single evidence table with the exact columns provided.
+- Prefer short sentences and bullet points for insights.
+- Do not include external links or references.
+- Do not include code unless it appears in the input logs and is directly relevant.
+
+---
+
+INPUT DATA
 - ATTACK_LOG_JSON: {json.dumps(attack_json)}
 - CLOUDTRAIL_JSON: {json.dumps(cloudtrail_json)}
 
@@ -394,11 +785,9 @@ INPUTS
 
         client = OpenAI(api_key=api_key)
 
-        # Use responses.create (Chat Completions-like)
         completion = client.chat.completions.create(
             model="gpt-4o",
             messages=[
-                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": full_prompt},
             ],
             temperature=0.2,
@@ -408,16 +797,6 @@ INPUTS
         if not content:
             return JSONResponse({"error": "Empty response from model"}, status_code=500)
 
-        # Split markdown and JSON summary
-        markdown_part = content
-        json_summary: Dict[str, Any] = {}
-        if "```json" in content:
-            try:
-                json_block = content.split("```json", 1)[1].split("```", 1)[0]
-                json_summary = json.loads(json_block)
-            except Exception:
-                json_summary = {}
-
         # Create output dir and PDF path
         reports_dir = os.path.join(backend_dir, "reports")
         os.makedirs(reports_dir, exist_ok=True)
@@ -425,13 +804,12 @@ INPUTS
         filename = f"cloudtrail_report_{timestamp}.pdf"
         pdf_path = os.path.join(reports_dir, filename)
 
-        # Render PDF
-        _render_markdown_to_pdf(markdown_part, pdf_path)
+        # Render PDF with improved formatting
+        _render_markdown_to_pdf(content, pdf_path)
 
         return JSONResponse({
             "message": "Report generated",
-            "markdown": markdown_part,
-            "json_summary": json_summary,
+            "markdown": content,
             "filename": filename,
             "download_url": f"/reports/download?filename={filename}"
         })
