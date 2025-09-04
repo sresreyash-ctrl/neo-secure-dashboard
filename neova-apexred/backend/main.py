@@ -7,6 +7,15 @@ import logging
 import time
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
+from datetime import datetime
+from typing import Tuple, List, Dict, Any
+
+# OpenAI and PDF
+from openai import OpenAI
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
+from reportlab.lib.units import mm
+from reportlab.lib.utils import simpleSplit
 
 app = FastAPI()
 
@@ -233,13 +242,15 @@ def fetch_cloudtrail_logs(payload: dict = Body(...)):
         os.makedirs(logs_dir, exist_ok=True)
         log_file = os.path.join(logs_dir, "Detection_Logs.json")
 
-        # Actual AWS CLI command (runs internally instead of user curl)
+        # Use region from environment (saved via /save-aws-config), fallback to us-east-1
+        region = os.getenv("AWS_REGION", "us-east-1")
+
+        # Build AWS CLI command (CloudTrail supports a single --lookup-attributes per call)
         cmd = [
             "aws", "cloudtrail", "lookup-events",
             "--lookup-attributes", "AttributeKey=EventName,AttributeValue=StopLogging",
-            "AttributeKey=Username,AttributeValue=stratus-redteam-cli-user",
             "--max-results", "50",
-            "--region", "us-east-1",
+            "--region", region,
             "--output", "json"
         ]
 
@@ -256,17 +267,172 @@ def fetch_cloudtrail_logs(payload: dict = Body(...)):
                 status_code=500
             )
 
-        # Save logs
-        with open(log_file, "w", encoding="utf-8") as f:
-            f.write(result.stdout)
-
         logs_json = json.loads(result.stdout)
+
+        # Optionally filter by the stratus user if present
+        try:
+            events = logs_json.get("Events", [])
+            filtered = [e for e in events if e.get("Username") == "stratus-redteam-cli-user"]
+            if filtered:
+                logs_json["Events"] = filtered
+        except Exception:
+            # Keep original if filtering fails
+            pass
+
+        # Save logs (post-filter)
+        with open(log_file, "w", encoding="utf-8") as f:
+            json.dump(logs_json, f, indent=2)
 
         return JSONResponse({
             "message": "CloudTrail logs fetched successfully",
             "user_curl": user_curl,   # just echo back what user gave
-            "logs": logs_json
+            "logs": logs_json,
+            "path": log_file,
+            "region": region
         })
 
     except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+# Helper: Render markdown-ish text to a simple PDF using ReportLab
+def _render_markdown_to_pdf(markdown_text: str, pdf_path: str) -> None:
+    c = canvas.Canvas(pdf_path, pagesize=A4)
+    width, height = A4
+    left_margin = 20 * mm
+    right_margin = 20 * mm
+    top_margin = 20 * mm
+    bottom_margin = 20 * mm
+    usable_width = width - left_margin - right_margin
+
+    y = height - top_margin
+    line_height = 12
+
+    def draw_wrapped(text: str, font_name: str = "Helvetica", font_size: int = 10, bold: bool = False):
+        nonlocal y
+        if bold:
+            font_name = "Helvetica-Bold"
+        c.setFont(font_name, font_size)
+        lines = simpleSplit(text, font_name, font_size, usable_width)
+        for line in lines:
+            if y <= bottom_margin:
+                c.showPage()
+                y = height - top_margin
+                c.setFont(font_name, font_size)
+            c.drawString(left_margin, y, line)
+            y -= line_height
+
+    # Very minimal markdown cues: headings and bullets
+    for raw_line in markdown_text.splitlines():
+        line = raw_line.rstrip()
+        if not line:
+            y -= line_height
+            continue
+        if line.startswith("### "):
+            draw_wrapped(line[4:], font_size=12, bold=True)
+            y -= 2
+        elif line.startswith("## "):
+            draw_wrapped(line[3:], font_size=14, bold=True)
+            y -= 4
+        elif line.startswith("# "):
+            draw_wrapped(line[2:], font_size=16, bold=True)
+            y -= 6
+        elif line.startswith("- ") or line.startswith("* "):
+            draw_wrapped("• " + line[2:], font_size=10)
+        elif line.startswith("|") and line.endswith("|"):
+            # rudimentary table row rendering
+            draw_wrapped(line.replace("|", "|"))
+        else:
+            draw_wrapped(line)
+
+    c.showPage()
+    c.save()
+
+
+@app.post("/generate-cloudtrail-report")
+def generate_cloudtrail_report(payload: dict = Body(...)):
+    try:
+        # Paths
+        backend_dir = os.path.dirname(__file__)
+        attack_logs_path = os.path.join(backend_dir, "attack-logs", "aws.defense-evasion.cloudtrail-stop.json")
+        cloudtrail_logs_path = os.path.join(backend_dir, "cloudtrail-logs", "Detection_Logs.json")
+
+        # Allow payload overrides for custom paths
+        attack_logs_path = payload.get("attackLogsPath", attack_logs_path)
+        cloudtrail_logs_path = payload.get("cloudtrailLogsPath", cloudtrail_logs_path)
+
+        # Read JSON inputs
+        if not os.path.exists(attack_logs_path):
+            return JSONResponse({"error": f"Attack log not found at {attack_logs_path}"}, status_code=400)
+        if not os.path.exists(cloudtrail_logs_path):
+            return JSONResponse({"error": f"CloudTrail log not found at {cloudtrail_logs_path}"}, status_code=400)
+
+        with open(attack_logs_path, "r", encoding="utf-8") as f:
+            attack_json = json.load(f)
+        with open(cloudtrail_logs_path, "r", encoding="utf-8") as f:
+            cloudtrail_json = json.load(f)
+
+        # Build the system/user prompt per user spec
+        system_prompt = (
+            "You are a senior cloud security log analyst. You will read two JSON inputs and produce a concise, UI-ready incident report about attempts to disable AWS CloudTrail logging. You must be accurate, correlate the logs, and avoid speculation."
+        )
+
+        full_prompt = f"""ROLE
+You are a senior cloud security log analyst. You will read two JSON inputs and produce a concise, UI-ready incident report about attempts to disable AWS CloudTrail logging. You must be accurate, correlate the logs, and avoid speculation.
+
+INPUTS
+- ATTACK_LOG_JSON: {json.dumps(attack_json)}
+- CLOUDTRAIL_JSON: {json.dumps(cloudtrail_json)}
+
+{payload.get('instructions', '')}
+"""
+
+        # Call OpenAI
+        api_key = os.getenv("OPENAI_API_KEY", "").strip()
+        if not api_key:
+            return JSONResponse({"error": "OPENAI_API_KEY not set. Use /save-openai-key first."}, status_code=400)
+
+        client = OpenAI(api_key=api_key)
+
+        # Use responses.create (Chat Completions-like)
+        completion = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": full_prompt},
+            ],
+            temperature=0.2,
+        )
+
+        content = completion.choices[0].message.content if completion and completion.choices else ""
+        if not content:
+            return JSONResponse({"error": "Empty response from model"}, status_code=500)
+
+        # Split markdown and JSON summary
+        markdown_part = content
+        json_summary: Dict[str, Any] = {}
+        if "```json" in content:
+            try:
+                json_block = content.split("```json", 1)[1].split("```", 1)[0]
+                json_summary = json.loads(json_block)
+            except Exception:
+                json_summary = {}
+
+        # Create output dir and PDF path
+        reports_dir = os.path.join(backend_dir, "reports")
+        os.makedirs(reports_dir, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        pdf_path = os.path.join(reports_dir, f"cloudtrail_report_{timestamp}.pdf")
+
+        # Render PDF
+        _render_markdown_to_pdf(markdown_part, pdf_path)
+
+        return JSONResponse({
+            "message": "Report generated",
+            "markdown": markdown_part,
+            "json_summary": json_summary,
+            "pdf_path": pdf_path
+        })
+    except Exception as e:
+        logging.exception("Failed to generate CloudTrail report")
         return JSONResponse({"error": str(e)}, status_code=500)

@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { Play, ChevronDown, ChevronUp, Loader2, CheckCircle, XCircle } from "lucide-react";
 import AttackTechniquesTable from "./AttackTechniquesTable";
+import { useToast } from "@/hooks/use-toast";
 
 type AttackStatus = 'idle' | 'running' | 'success' | 'failed';
 
 const ExpandableAttackCard = () => {
+  const { toast } = useToast();
   const [isExpanded, setIsExpanded] = useState(false);
   const [selectedTechnique, setSelectedTechnique] = useState<string | null>(null);
   const [attackStatus, setAttackStatus] = useState<AttackStatus>('idle');
@@ -48,10 +50,12 @@ const ExpandableAttackCard = () => {
         }
         const postData = await postResponse.json();
         console.log("Deferred product response:", postData);
+        toast({ title: "CloudTrail logs fetched", description: "Detection_Logs.json updated." });
         // clear only after success
         localStorage.removeItem("deferredProductCurl");
       } catch (postError) {
         console.error("Error sending deferred product POST:", postError);
+        toast({ title: "CloudTrail fetch failed", description: String(postError), variant: "destructive" });
       }
     }
   } catch (error) {
