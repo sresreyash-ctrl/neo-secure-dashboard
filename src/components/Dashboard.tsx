@@ -1,10 +1,85 @@
 import { Download, Activity, Settings } from "lucide-react";
+import { toast } from "@/components/ui/use-toast";
 import DashboardCard from "./DashboardCard";
 import ExpandableAttackCard from "./ExpandableAttackCard";
 
 const Dashboard = () => {
-  const handleDownloadReport = () => {
-    console.log("Download Report clicked");
+  const handleDownloadReport = async () => {
+    try {
+      const loading = toast({
+        title: "Generating report...",
+        description: "Please wait while we compile the PDF.",
+      });
+
+      const res = await fetch("http://localhost:8000/generate-report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+
+      if (!res.ok) {
+        const msg = await res.text();
+        console.error("Failed to generate report", msg);
+        loading.dismiss();
+        toast({
+          title: "Failed to generate report",
+          description: msg,
+        });
+        return;
+      }
+
+      const data = await res.json();
+      const downloadUrl: string = data?.download_url;
+      const filename: string = data?.filename || "report.pdf";
+
+      if (!downloadUrl) {
+        console.error("No download URL returned from backend");
+        loading.dismiss();
+        toast({
+          title: "Failed to generate report",
+          description: "No download URL returned from backend.",
+        });
+        return;
+      }
+
+      // Trigger file download
+      const fullUrl = downloadUrl.startsWith("http")
+        ? downloadUrl
+        : `http://localhost:8000${downloadUrl}`;
+
+      const fileRes = await fetch(fullUrl);
+      if (!fileRes.ok) {
+        const msg = await fileRes.text();
+        console.error("Failed to download PDF", msg);
+        loading.dismiss();
+        toast({
+          title: "Download failed",
+          description: msg,
+        });
+        return;
+      }
+      const blob = await fileRes.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+
+      loading.dismiss();
+      toast({
+        title: "Report downloaded",
+        description: filename,
+      });
+    } catch (err) {
+      console.error("Error generating/downloading report", err);
+      toast({
+        title: "Unexpected error",
+        description: `${err}`,
+      });
+    }
   };
 
   const handleResetConfiguration = () => {

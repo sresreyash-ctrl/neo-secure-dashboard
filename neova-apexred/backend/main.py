@@ -2,7 +2,7 @@ import os
 import json
 import subprocess
 from fastapi import FastAPI, Body
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 import logging
 import time
 from fastapi.middleware.cors import CORSMiddleware
@@ -349,8 +349,8 @@ def _render_markdown_to_pdf(markdown_text: str, pdf_path: str) -> None:
     c.save()
 
 
-@app.post("/generate-cloudtrail-report")
-def generate_cloudtrail_report(payload: dict = Body(...)):
+@app.post("/generate-report")
+def generate_report(payload: dict = Body(...)):
     try:
         # Paths
         backend_dir = os.path.dirname(__file__)
@@ -422,7 +422,8 @@ INPUTS
         reports_dir = os.path.join(backend_dir, "reports")
         os.makedirs(reports_dir, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        pdf_path = os.path.join(reports_dir, f"cloudtrail_report_{timestamp}.pdf")
+        filename = f"cloudtrail_report_{timestamp}.pdf"
+        pdf_path = os.path.join(reports_dir, filename)
 
         # Render PDF
         _render_markdown_to_pdf(markdown_part, pdf_path)
@@ -431,8 +432,30 @@ INPUTS
             "message": "Report generated",
             "markdown": markdown_part,
             "json_summary": json_summary,
-            "pdf_path": pdf_path
+            "filename": filename,
+            "download_url": f"/reports/download?filename={filename}"
         })
     except Exception as e:
-        logging.exception("Failed to generate CloudTrail report")
+        logging.exception("Failed to generate report")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@app.get("/reports/download")
+def download_report(filename: str):
+    try:
+        backend_dir = os.path.dirname(__file__)
+        reports_dir = os.path.join(backend_dir, "reports")
+        safe_name = os.path.basename(filename)
+        file_path = os.path.join(reports_dir, safe_name)
+
+        if not os.path.exists(file_path):
+            return JSONResponse({"error": f"File not found: {safe_name}"}, status_code=404)
+
+        return FileResponse(
+            path=file_path,
+            media_type="application/pdf",
+            filename=safe_name
+        )
+    except Exception as e:
+        logging.exception("Failed to download report")
         return JSONResponse({"error": str(e)}, status_code=500)
