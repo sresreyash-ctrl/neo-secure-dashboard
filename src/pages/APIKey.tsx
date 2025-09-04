@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { toast } from "@/components/ui/use-toast";
 import BackButton from "@/components/BackButton";
 
 const APIKey = () => {
@@ -16,10 +17,31 @@ const APIKey = () => {
   }, []);
 
   const handleSaveKey = () => {
-    if (apiKey.trim()) {
-      localStorage.setItem("openai_api_key", apiKey.trim());
-      console.log("API key saved to localStorage");
-    }
+    const trimmed = apiKey.trim();
+    if (!trimmed) return;
+    // Save to backend .env
+    fetch("http://127.0.0.1:8000/save-openai-key", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ apiKey: trimmed }),
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || "Failed to save key");
+        }
+        return res.json();
+      })
+      .then(() => {
+        localStorage.setItem("openai_api_key", trimmed);
+        console.log("API key saved to backend and localStorage");
+        toast({ title: "OpenAI API Key saved!", description: "Your key has been stored securely." });
+        setApiKey("");
+      })
+      .catch((err) => {
+        console.error("Error saving OpenAI key:", err);
+        toast({ title: "Failed to save OpenAI API Key", description: String(err), variant: "destructive" as any });
+      });
   };
 
   const handleClearKey = () => {

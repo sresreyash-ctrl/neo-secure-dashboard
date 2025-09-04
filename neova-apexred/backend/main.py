@@ -169,3 +169,53 @@ def save_aws_config(config: dict = Body(...)):
         return JSONResponse({"message": "AWS configuration saved to .env successfully"})
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@app.post("/save-openai-key")
+def save_openai_key(payload: dict = Body(...)):
+    try:
+        provided_key = payload.get("apiKey", "").strip()
+        if not provided_key:
+            return JSONResponse({"error": "apiKey is required"}, status_code=400)
+
+        # Read existing .env lines if file exists
+        existing_lines = []
+        if os.path.exists(ENV_FILE):
+            with open(ENV_FILE, "r", encoding="utf-8") as f:
+                existing_lines = [line.rstrip("\n") for line in f.readlines()]
+
+        # Build a dict of current key-values from .env (simple split on first '=')
+        env_map = {}
+        for line in existing_lines:
+            if not line or line.strip().startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            env_map[key] = value
+
+        # Update the OPENAI_API_KEY
+        env_map["OPENAI_API_KEY"] = provided_key
+
+        # Ensure AWS variables remain if previously written by /save-aws-config
+        ordered_keys = [
+            "AWS_ACCESS_KEY_ID",
+            "AWS_SECRET_ACCESS_KEY",
+            "AWS_REGION",
+            "OPENAI_API_KEY",
+        ]
+
+        # Reconstruct env file content, keeping known keys ordered, then others
+        content_lines = []
+        for k in ordered_keys:
+            if k in env_map:
+                content_lines.append(f"{k}={env_map[k]}")
+        # Append any other keys that might exist
+        for k, v in env_map.items():
+            if k not in ordered_keys:
+                content_lines.append(f"{k}={v}")
+
+        with open(ENV_FILE, "w", encoding="utf-8") as f:
+            f.write("\n".join(content_lines))
+
+        return JSONResponse({"message": "OpenAI API key saved to .env successfully"})
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
