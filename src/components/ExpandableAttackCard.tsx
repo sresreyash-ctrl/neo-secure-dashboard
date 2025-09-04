@@ -36,6 +36,24 @@ const ExpandableAttackCard = () => {
     console.log("Attack response:", data);
     setAttackStatus("success"); // or check backend logs for failure
 
+    // Immediately fetch CloudTrail logs after attack completes (before cleanup)
+    try {
+      const cloudtrailResponse = await fetch("http://localhost:8000/fetch-cloudtrail-logs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ curl: "attack-completed" }),
+      });
+      if (!cloudtrailResponse.ok) {
+        throw new Error("Detection logs fetch failed");
+      }
+      const cloudtrailData = await cloudtrailResponse.json();
+      console.log("Detection logs response:", cloudtrailData);
+      toast({ title: "Detection logs fetched", description: "Detection_Logs.json updated." });
+    } catch (cloudtrailError) {
+      console.error("Error fetching Detection logs:", cloudtrailError);
+      toast({ title: "Detection fetch failed", description: String(cloudtrailError), variant: "destructive" });
+    }
+
     // After successful attack, send deferred product POST if available
     const deferredCurl = localStorage.getItem("deferredProductCurl");
     if (deferredCurl) {

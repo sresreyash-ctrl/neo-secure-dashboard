@@ -253,7 +253,7 @@ def fetch_cloudtrail_logs(payload: dict = Body(...)):
         cmd = [
             "aws", "cloudtrail", "lookup-events",
             "--lookup-attributes", "AttributeKey=EventName,AttributeValue=StopLogging",
-            "--max-results", "50",
+            "--max-results", "60",
             "--region", region,
             "--output", "json"
         ]
@@ -288,7 +288,7 @@ def fetch_cloudtrail_logs(payload: dict = Body(...)):
             json.dump(logs_json, f, indent=2)
 
         return JSONResponse({
-            "message": "CloudTrail logs fetched successfully",
+            "message": "Detection logs fetched successfully",
             "user_curl": user_curl,   # just echo back what user gave
             "logs": logs_json,
             "path": log_file,
@@ -664,116 +664,55 @@ def generate_report(payload: dict = Body(...)):
         with open(cloudtrail_logs_path, "r", encoding="utf-8") as f:
             cloudtrail_json = json.load(f)
 
-        # Build the updated prompt (without JSON summary)
+        # Build the updated prompt (to match your report.docx style + MITRE Mapping)
         full_prompt = f"""
-ROLE
-You are a senior cloud security log analyst. You will read two JSON inputs and produce a concise, UI-ready incident report about attempts to disable AWS CloudTrail logging. You must be accurate, correlate the logs, and avoid speculation.
+You are a senior cloud security analyst. Compare two JSON files:
+1. ATTACK_LOG_JSON (from red-team framework, e.g., aws.defense-evasion.cloudtrail-stop.json)
+2. DETECTION_LOG_JSON (from security product, e.g., Detection_Logs.json)
 
-INPUTS
-- ATTACK_LOG_JSON: JSON from the attack framework (file like: aws.defense-evasion.cloudtrail-stop.json). This contains fields such as:
-  {{
-    "technique_id": "aws.defense-evasion.cloudtrail-stop",
-    "warmup_output": [ ...lines... ],
-    "detonate_output": [ ...lines... ],
-    "detonate_error": [ ...lines... ],
-    "cleanup_output": [ ...lines... ],
-    "cleanup_error": [ ...lines... ]
-  }}
+Your task:
+- Write an incident analysis report in the **exact structure and tone** as the reference report provided earlier.
+- Keep it concise, professional, and in plain English (no speculation).
 
-- CLOUDTRAIL_JSON: Raw AWS CloudTrail event records (file like: CloudTrail_StopLogging_Attack_Logs.json). It should contain one or more objects/records with fields typically including:
-  - eventTime (UTC or ISO)
-  - eventName (e.g., StopLogging, StartLogging)
-  - userIdentity.userName (e.g., stratus-redteam-cli-user)
-  - userIdentity.accessKeyId
-  - sourceIPAddress
-  - userAgent
-  - requestParameters.name (trail name) OR resources with a CloudTrail trail ARN
-  - errorCode / errorMessage (if any)
-(If the exact schema varies, infer the above from equivalent fields.)
+=== REPORT STRUCTURE ===
 
-TASK
-1) Parse both inputs.
-2) Normalize and correlate:
-   - Identify all StopLogging and StartLogging events from CLOUDTRAIL_JSON.
-   - Extract the actor (IAM user), accessKeyId, source IPs, user agent, event times, trail names, and result (success/failure).
-   - From ATTACK_LOG_JSON, extract:
-     - technique_id
-     - clear start time of detonation, any explicit "successfully stopped logging" markers, and cleanup/restoration markers.
-     - duration (if present in text), otherwise compute if start/end are present.
-3) Timezones:
-   - Convert all displayed times to IST (UTC+05:30) and label them "IST".
-   - If the source time is already local, still present the final display in IST.
-4) Determine ATTACK STATUS:
-   - "Successful" if there is evidence that CloudTrail logging was stopped (e.g., ATTACK_LOG_JSON states success AND/OR CLOUDTRAIL_JSON shows StopLogging success for a specific trail).
-   - "Failed" if StopLogging was attempted but no successful stop occurred (only errors).
-   - "Partial" if mixed (some trails failed, at least one succeeded) or if the attack log claims success but CloudTrail has no confirmatory evidence.
-5) Produce a descriptive, analyst-style narrative (no heavy tables) followed by a single compact evidence table. Keep it precise, readable, and suitable for a dashboard card. 
-6) Do NOT use or mention the word "simulation" anywhere. If needed, you may say "red-team activity" or simply "attack".
-7) Redaction & fallbacks:
-   - Redact accessKeyId to the last 4 characters (e.g., AKIA…X43PFZ → AKIA…PFZ).
-   - If any field is missing, use "Unknown".
-   - Do not invent trails or times that do not exist in the inputs.
+# Security Log Analysis Report
 
-OUTPUT FORMAT:
-Return a markdown report with the following exact structure:
+## Executive Summary
+Summarize whether the detection was successful. Clearly state if the product detected the key attack (StopLogging). Mention if context/narrative was missing.
 
-TITLE (H1):
-🔴 CloudTrail Under Fire: Logging Disabled Attempt Detected
+## 1. Attack Log Analysis
+- Log Source: Attack Log  
+- Describe what the attack log shows (framework, technique_id, actor, goal, key action, time, userAgent).  
+- Mention full attack narrative (warmup → detonate → revert).
 
-SUBTITLE (H3):
-**Attack: AWS Defense Evasion — Stop CloudTrail Trail**
+## 2. Detection Log Analysis
+- Log Source: Detection Log  
+- Describe what the detection product recorded (event name, user, timestamp, source).  
+- Note if contextual info (e.g., userAgent, sequence) is missing.
 
-BODY (Narrative paragraphs):
-- Paragraph 1: State when the attack began (IST), the technique_id, who performed it (IAM user), and that the goal is disabling CloudTrail logging.
-- Paragraph 2: State the explicit Attack Status line in bold, with a concise reason. Example:
-  ⚠️ **Attack Status:** ✅ **Successful** — CloudTrail logging was stopped for the trail `<trail-name>`.
-  If restored, note that logging was later restarted as part of cleanup.
-- Paragraph 3: Summarize key evidence from CloudTrail: mention at least one StopLogging event time (IST), source IP(s), and the user agent. Mention any failed attempts (e.g., TrailNotFoundException) as probing.
-- Paragraph 4: Mention overall duration (approximate), start/end events from ATTACK_LOG_JSON, and that cleanup restarted logging if present.
+## 3. Comparison and Findings
+Present a table with columns: **Feature | Attack Log | Detection Log | Findings**.  
+Include rows for Event Name, User, Timestamp, User Agent, Context.  
+Mark detections as "Detected" or "Missed" in Findings.
 
-TABLE (H2):
-## 📊 Attack Evidence
+## Conclusion and Recommendations
+- State how well the product performed.  
+- Point out missing pieces (userAgent, context, attack sequence).  
+- Give 2–3 concrete recommendations:
+  - Enrich logs with more fields.  
+  - Detect sequences instead of isolated events.  
+  - Generate narrative-based alerts.
 
-Required columns and exact order:
-| **Technique ID** | **Tactic** | **Time (IST)** | **Actor** | **Trail Targeted** | **Result** |
+## MITRE Mapping
+Add the MITRE ATT&CK technique ID and tactic used in this attack.  
+For example:  
+- **Technique:** T1562.002 – Impair Defenses: Disable CloudTrail Logging  
+- **Tactic:** Defense Evasion
 
-Rows:
-- Populate rows from corroborated events (e.g., StopLogging successes and notable failures). Keep 3—5 most relevant rows (most recent or most critical). Results should be:
-  - "✅ Success — Logging Stopped" for confirmed stops
-  - "❌ Failed — <ErrorCode>" for failures
-  - If mixed/unknown, use "⚠️ Partial/Unknown — <short note>"
-
-KEY INSIGHTS (H2):
-## 🔍 Key Insights
-- **Objective:** Disable CloudTrail logging to reduce detection visibility.
-- **Actor:** <IAM user or Unknown> (access key: <masked>)
-- **Source IPs:** <comma-separated unique list, up to 3; if more, add "+N more">
-- **Impact:** <short line, e.g., "Logging was successfully stopped on <trail-name>" or "No confirmed stop">
-- **Severity:** High
-
-ANALYST NOTE (H2):
-Short paragraph (1—2 sentences) warning that disabling CloudTrail creates monitoring blind spots and should be alerted on. No speculation.
-
-VALIDATION & EDGE CASES
-- If ATTACK_LOG_JSON claims success but no corroborating StopLogging in CLOUDTRAIL_JSON, set attack_status to "Partial" and explain briefly in the narrative.
-- If CLOUDTRAIL_JSON shows StopLogging but ATTACK_LOG_JSON is missing/empty, still report as "Successful" (evidence: CloudTrail).
-- If all attempts failed (errors only), set attack_status to "Failed" and reflect this in both narrative and table.
-- If StartLogging is present in cleanup, mention restoration explicitly.
-- Always convert final displayed times to IST and label them "IST".
-
-STYLE GUIDE
-- Be concise, factual, and professional.
-- Avoid the word "simulation".
-- Use only the single evidence table with the exact columns provided.
-- Prefer short sentences and bullet points for insights.
-- Do not include external links or references.
-- Do not include code unless it appears in the input logs and is directly relevant.
-
----
-
-INPUT DATA
+=== INPUT DATA ===
 - ATTACK_LOG_JSON: {json.dumps(attack_json)}
-- CLOUDTRAIL_JSON: {json.dumps(cloudtrail_json)}
+- DETECTION_LOG_JSON: {json.dumps(cloudtrail_json)}
 
 {payload.get('instructions', '')}
 """
@@ -801,7 +740,7 @@ INPUT DATA
         reports_dir = os.path.join(backend_dir, "reports")
         os.makedirs(reports_dir, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"cloudtrail_report_{timestamp}.pdf"
+        filename = f"attack_detection_report_{timestamp}.pdf"
         pdf_path = os.path.join(reports_dir, filename)
 
         # Render PDF with improved formatting
