@@ -13,6 +13,7 @@ dist-ssr
 *.local
 
 attack-logs
+cloudtrail-logs
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -29,5 +30,7 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+
+.env
 
 
