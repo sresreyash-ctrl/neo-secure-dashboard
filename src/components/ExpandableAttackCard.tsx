@@ -16,27 +16,36 @@ const ExpandableAttackCard = () => {
   };
 
   const handleRunAttack = async () => {
-    if (!selectedTechnique) return;
-    
-    console.log("Running attack with technique:", selectedTechnique);
-    setAttackStatus('running');
-    
-    // Simulate attack execution (30 seconds to 2 minutes)
-    const duration = Math.random() * 90000 + 30000; // 30s to 2m
-    
+  if (!selectedTechnique) return;
+
+  setAttackStatus("running");
+  try {
+    const response = await fetch("http://localhost:8000/attack/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ technique_id: selectedTechnique }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to run attack");
+    }
+
+    const data = await response.json();
+    console.log("Attack response:", data);
+    setAttackStatus("success"); // or check backend logs for failure
+  } catch (error) {
+    console.error("Error running attack:", error);
+    setAttackStatus("failed");
+  } finally {
+    // Reset after 5s
     setTimeout(() => {
-      // Random success/failure for demo
-      const success = Math.random() > 0.3; // 70% success rate
-      setAttackStatus(success ? 'success' : 'failed');
-      
-      // Reset after 5 seconds
-      setTimeout(() => {
-        setAttackStatus('idle');
-        setIsExpanded(false);
-        setSelectedTechnique(null);
-      }, 5000);
-    }, duration);
-  };
+      setAttackStatus("idle");
+      setIsExpanded(false);
+      setSelectedTechnique(null);
+    }, 5000);
+  }
+};
+
 
   const getStatusDisplay = () => {
     switch (attackStatus) {

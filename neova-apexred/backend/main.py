@@ -1,18 +1,18 @@
 import os
+import json
 import subprocess
 from fastapi import FastAPI, Body
 from fastapi.responses import JSONResponse
 import logging
 import time
 from fastapi.middleware.cors import CORSMiddleware
-
+from dotenv import load_dotenv
 
 app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # you can restrict to ["http://localhost:3000"] if React runs there
-    allow_credentials=True,
+    allow_origins=["*"],  
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -63,36 +63,81 @@ def startup_event():
     logging.info('FastAPI startup event triggered.')
     ensure_stratus_built()
 
-@app.post('/attack/cloudtrail-stop')
-def attack_cloudtrail_stop():
-    logging.info('POST /attack/cloudtrail-stop called.')
+ENV_FILE = os.path.join(os.path.dirname(__file__), ".env")
+if os.path.exists(ENV_FILE):
+    load_dotenv(ENV_FILE)
+    logging.info(f"Loaded environment variables from {ENV_FILE}")
+else:
+    logging.warning(f"No .env file found at {ENV_FILE}. Environment variables must be set externally.")
+
+def ensure_aws_env():
+    """Ensure AWS environment variables are present before running attacks."""
+    required_vars = ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_REGION"]
+    missing = [var for var in required_vars if not os.getenv(var)]
+    if missing:
+        raise RuntimeError(f"Missing required AWS environment variables: {', '.join(missing)}")
+    logging.info("All required AWS environment variables are present.")
+
+@app.post("/attack/run")
+def run_attack(payload: dict = Body(...)):
+    technique_id = payload.get("technique_id")
+    if not technique_id:
+        return JSONResponse({"error": "No technique_id provided"}, status_code=400)
+
+    logging.info(f"POST /attack/run called with technique_id={technique_id}")
     ensure_stratus_built()
-    # Set AWS_REGION environment variable for subprocesses
-    env = os.environ.copy()
-    env['AWS_REGION'] = 'us-east-1'
-    logging.info('Set AWS_REGION to us-east-1 for subprocesses.')
-    logging.info('Running warmup for aws.defense-evasion.cloudtrail-stop.')
-    warmup_result = subprocess.run([EXE_PATH, 'warmup', 'aws.defense-evasion.cloudtrail-stop'], cwd=V2_DIR, capture_output=True, text=True, env=env)
-    logging.info('Warmup stdout: %s', warmup_result.stdout)
-    logging.info('Warmup stderr: %s', warmup_result.stderr)
-    logging.info('Running detonate for aws.defense-evasion.cloudtrail-stop.')
-    detonate_result = subprocess.run([EXE_PATH, 'detonate', 'aws.defense-evasion.cloudtrail-stop'], cwd=V2_DIR, capture_output=True, text=True, env=env)
-    logging.info('Detonate stdout: %s', detonate_result.stdout)
-    logging.info('Detonate stderr: %s', detonate_result.stderr)
-    logging.info('Waiting for 2 minutes before cleanup.')
-    time.sleep(120)
-    logging.info('Running cleanup for aws.defense-evasion.cloudtrail-stop.')
-    cleanup_result = subprocess.run([EXE_PATH, 'cleanup', 'aws.defense-evasion.cloudtrail-stop'], cwd=V2_DIR, capture_output=True, text=True, env=env)
-    logging.info('Cleanup stdout: %s', cleanup_result.stdout)
-    logging.info('Cleanup stderr: %s', cleanup_result.stderr)
-    return JSONResponse({
-        'warmup_output': warmup_result.stdout,
-        'warmup_error': warmup_result.stderr,
-        'detonate_output': detonate_result.stdout,
-        'detonate_error': detonate_result.stderr,
-        'cleanup_output': cleanup_result.stdout,
-        'cleanup_error': cleanup_result.stderr,
-    })
+    ensure_aws_env()
+
+    env = os.environ.copy()  # use only what's in env / .env
+    logging.info("Using AWS environment variables from env/.env")
+
+    # Warmup
+    logging.info(f"Running warmup for {technique_id}.")
+    warmup = subprocess.run(
+        [EXE_PATH, "warmup", technique_id],
+        cwd=V2_DIR, capture_output=True, text=True, env=env
+    )
+
+    # Detonate
+    logging.info(f"Running detonate for {technique_id}.")
+    detonate = subprocess.run(
+        [EXE_PATH, "detonate", technique_id],
+        cwd=V2_DIR, capture_output=True, text=True, env=env
+    )
+
+    logging.info("Waiting 10 seconds before cleanup...")
+    time.sleep(10)
+
+    # Cleanup
+    logging.info(f"Running cleanup for {technique_id}.")
+    cleanup = subprocess.run(
+        [EXE_PATH, "cleanup", technique_id],
+        cwd=V2_DIR, capture_output=True, text=True, env=env
+    )
+
+    # Prepare result JSON (split into lists of lines for readability)
+    result = {
+        "technique_id": technique_id,
+        "warmup_output": warmup.stdout.strip().splitlines(),
+        "warmup_error": warmup.stderr.strip().splitlines(),
+        "detonate_output": detonate.stdout.strip().splitlines(),
+        "detonate_error": detonate.stderr.strip().splitlines(),
+        "cleanup_output": cleanup.stdout.strip().splitlines(),
+        "cleanup_error": cleanup.stderr.strip().splitlines(),
+    }
+
+    # Ensure logs folder exists
+    logs_dir = os.path.join(os.path.dirname(__file__), "attack-logs")
+    os.makedirs(logs_dir, exist_ok=True)
+
+    # Save logs to JSON file
+    log_file = os.path.join(logs_dir, f"{technique_id}.json")
+    with open(log_file, "w", encoding="utf-8") as f:
+        json.dump(result, f, indent=4)
+
+    logging.info(f"Attack logs saved to {log_file}")
+    return JSONResponse(result)
+
 
 @app.post('/undo/s3')
 def undo_attack_s3():
