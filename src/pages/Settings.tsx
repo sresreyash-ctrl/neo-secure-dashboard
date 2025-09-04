@@ -17,6 +17,8 @@ const Settings = () => {
     region: ""
   });
 
+  const [curlCommand, setCurlCommand] = useState("");
+
   const handleAwsConfigChange = (field: string, value: string) => {
     setAwsConfig(prev => ({
       ...prev,
@@ -43,7 +45,15 @@ const Settings = () => {
       variant: "destructive",
     });
   }
-};
+  };
+
+  const handleSaveProduct = () => {
+    toast({
+      title: "Product Onboarded",
+      description: "Product has been successfully onboarded.",
+    });
+    setCurlCommand("");
+  };
 
   return (
     <div className="flex-1 p-8 bg-background">
@@ -63,7 +73,7 @@ const Settings = () => {
         <Tabs defaultValue="aws-config" className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="aws-config">AWS Configuration</TabsTrigger>
-            <TabsTrigger value="add-user">Add User</TabsTrigger>
+            <TabsTrigger value="onboard-product">Onboard Product</TabsTrigger>
           </TabsList>
           
           <TabsContent value="aws-config" className="mt-6">
@@ -126,16 +136,33 @@ const Settings = () => {
             </Card>
           </TabsContent>
           
-          <TabsContent value="add-user" className="mt-6">
+          <TabsContent value="onboard-product" className="mt-6">
             <Card>
               <CardHeader>
-                <CardTitle>Add User</CardTitle>
+                <CardTitle>Onboard Product</CardTitle>
                 <CardDescription>
-                  User management functionality will be available soon.
+                  Paste a cURL command to onboard a new product.
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">This feature is coming soon...</p>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="curl-command">cURL Command</Label>
+                  <Input
+                    id="curl-command"
+                    type="text"
+                    placeholder="Paste your cURL command here..."
+                    value={curlCommand}
+                    onChange={(e) => setCurlCommand(e.target.value)}
+                    className="mt-1"
+                  />
+                </div>
+                
+                <Button 
+                  onClick={handleSaveProduct}
+                  className="w-full mt-6"
+                >
+                  Save
+                </Button>
               </CardContent>
             </Card>
           </TabsContent>
