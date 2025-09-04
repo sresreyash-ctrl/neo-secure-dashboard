@@ -219,3 +219,54 @@ def save_openai_key(payload: dict = Body(...)):
         return JSONResponse({"message": "OpenAI API key saved to .env successfully"})
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
+    
+@app.post("/fetch-cloudtrail-logs")
+def fetch_cloudtrail_logs(payload: dict = Body(...)):
+    try:
+        user_curl = payload.get("curl", "")
+
+        # Ensure AWS env vars exist
+        ensure_aws_env()
+
+        # Define output file
+        logs_dir = os.path.join(os.path.dirname(__file__), "cloudtrail-logs")
+        os.makedirs(logs_dir, exist_ok=True)
+        log_file = os.path.join(logs_dir, "Detection_Logs.json")
+
+        # Actual AWS CLI command (runs internally instead of user curl)
+        cmd = [
+            "aws", "cloudtrail", "lookup-events",
+            "--lookup-attributes", "AttributeKey=EventName,AttributeValue=StopLogging",
+            "AttributeKey=Username,AttributeValue=stratus-redteam-cli-user",
+            "--max-results", "50",
+            "--region", "us-east-1",
+            "--output", "json"
+        ]
+
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            env=os.environ.copy()
+        )
+
+        if result.returncode != 0:
+            return JSONResponse(
+                {"error": "Failed to fetch CloudTrail logs", "stderr": result.stderr},
+                status_code=500
+            )
+
+        # Save logs
+        with open(log_file, "w", encoding="utf-8") as f:
+            f.write(result.stdout)
+
+        logs_json = json.loads(result.stdout)
+
+        return JSONResponse({
+            "message": "CloudTrail logs fetched successfully",
+            "user_curl": user_curl,   # just echo back what user gave
+            "logs": logs_json
+        })
+
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)

@@ -47,13 +47,28 @@ const Settings = () => {
   }
   };
 
-  const handleSaveProduct = () => {
-    toast({
-      title: "Product Onboarded",
-      description: "Product has been successfully onboarded.",
-    });
+  const handleSaveProduct = async () => {
+    try {
+      // Defer POST. Store cURL locally to be sent after attack completes.
+      if (curlCommand && curlCommand.trim().length > 0) {
+        localStorage.setItem("deferredProductCurl", curlCommand.trim());
+      }
+
+      toast({
+        title: "Success!",
+        description: "Product onboarded successfully!",
+      });
+    } catch (err: any) {
+      console.error("Error saving product cURL:", err);
+      toast({
+        title: "Error",
+        description: "Failed to save product details: " + (err.response?.data?.error || err.message),
+        variant: "destructive",
+      });
+    }
     setCurlCommand("");
   };
+  
 
   return (
     <div className="flex-1 p-8 bg-background">

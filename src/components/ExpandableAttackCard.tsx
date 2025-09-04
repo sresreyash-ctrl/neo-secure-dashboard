@@ -33,6 +33,27 @@ const ExpandableAttackCard = () => {
     const data = await response.json();
     console.log("Attack response:", data);
     setAttackStatus("success"); // or check backend logs for failure
+
+    // After successful attack, send deferred product POST if available
+    const deferredCurl = localStorage.getItem("deferredProductCurl");
+    if (deferredCurl) {
+      try {
+        const postResponse = await fetch("http://localhost:8000/fetch-cloudtrail-logs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ curl: deferredCurl }),
+        });
+        if (!postResponse.ok) {
+          throw new Error("Deferred product POST failed");
+        }
+        const postData = await postResponse.json();
+        console.log("Deferred product response:", postData);
+        // clear only after success
+        localStorage.removeItem("deferredProductCurl");
+      } catch (postError) {
+        console.error("Error sending deferred product POST:", postError);
+      }
+    }
   } catch (error) {
     console.error("Error running attack:", error);
     setAttackStatus("failed");
