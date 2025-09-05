@@ -1,73 +1,130 @@
-# Welcome to your Lovable project
+# Neo Secure Dashboard
 
-## Project info
+A comprehensive security dashboard for running and monitoring attack simulations using the Neova ApexRed framework.
 
-**URL**: https://lovable.dev/projects/3fa94451-4566-4cec-954a-39ea7c10cbad
+## Prerequisites
 
-## How can I edit this code?
+- Node.js (v16 or higher)
+- Python (v3.8 or higher)
+- pip (Python package manager)
+- AWS CLI configured with appropriate credentials
+- OpenAI API key
 
-There are several ways of editing your application.
+## Quick Start
 
-**Use Lovable**
+### 1. Frontend Setup
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/3fa94451-4566-4cec-954a-39ea7c10cbad) and start prompting.
+Navigate to the main project directory and install dependencies:
 
-Changes made via Lovable will be committed automatically to this repo.
+```bash
+cd neo-secure-dashboard
+npm install
+```
 
-**Use your preferred IDE**
+Start the development server:
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+```bash
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+The frontend will be available at `http://localhost:5173` (or the port shown in your terminal).
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+### 2. Backend Setup
 
-**Use GitHub Codespaces**
+Open a new terminal and navigate to the backend directory:
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+```bash
+cd neova-apexred
+```
 
-## What technologies are used for this project?
+Install Python dependencies:
 
-This project is built with:
+```bash
+pip install -r backend/requirements.txt
+```
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+Start the backend server:
 
-## How can I deploy this project?
+```bash
+uvicorn backend.main:app --reload
+```
 
-Simply open [Lovable](https://lovable.dev/projects/3fa94451-4566-4cec-954a-39ea7c10cbad) and click on Share -> Publish.
+The backend API will be available at `http://localhost:8000`.
 
-## Can I connect a custom domain to my Lovable project?
+## Configuration
 
-Yes, you can!
+### 1. AWS Configuration
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+1. Open the dashboard in your browser
+2. Navigate to the **Settings** page
+3. In the **AWS Credentials** section, configure your AWS access key and secret key
+4. Save the configuration
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+### 2. Product Onboarding
+
+1. Go to the **Onboard Product** section
+2. Set your OpenAI API key
+3. Submit the configuration
+
+## Usage
+
+### Running Attack Simulations
+
+1. Navigate to the **Attack Library** section
+2. Select the attack technique you want to simulate
+3. Click **Run Attack** to execute the simulation
+4. Monitor the attack progress in real-time
+
+### Downloading Reports
+
+1. After a successful attack simulation
+2. Click the **Download Report** button
+3. The attack detection report will be downloaded as a PDF
+
+## Project Structure
+
+```
+neo-secure-dashboard/
+├── src/                    # Frontend React application
+│   ├── components/         # React components
+│   ├── pages/             # Application pages
+│   └── lib/               # Utility functions
+├── neova-apexred/         # Backend Go application
+│   ├── backend/           # Python FastAPI backend
+│   ├── v2/                # Go attack techniques
+│   └── docs/              # Documentation
+└── public/                # Static assets
+```
+
+## Features
+
+- **Attack Simulation**: Run various attack techniques against AWS, Azure, GCP, and Kubernetes environments
+- **Real-time Monitoring**: Track attack progress and results in real-time
+- **Report Generation**: Generate detailed PDF reports of attack detections
+- **Multi-cloud Support**: Support for AWS, Azure, GCP, and Kubernetes attack techniques
+- **Modern UI**: Clean and intuitive dashboard interface
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Port conflicts**: If ports 5173 or 8000 are in use, the applications will automatically use the next available port
+2. **AWS credentials**: Ensure your AWS credentials have the necessary permissions for the attack techniques
+3. **OpenAI API**: Verify your OpenAI API key is valid and has sufficient credits
+
+### Getting Help
+
+If you encounter any issues:
+
+1. Check the console logs in your browser's developer tools
+2. Review the backend logs in the terminal running the uvicorn server
+3. Ensure all dependencies are properly installed
+4. Verify your AWS and OpenAI configurations
+
+## Security Notice
+
+This tool is designed for authorized security testing and red team exercises. Only use it on systems you own or have explicit permission to test. Unauthorized use may violate laws and terms of service.
+
+## License
+
+Please refer to the LICENSE file in the neova-apexred directory for licensing information.
