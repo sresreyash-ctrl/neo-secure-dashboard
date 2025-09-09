@@ -10,7 +10,7 @@ const Sidebar = ({ className = "" }: SidebarProps) => {
   const location = useLocation();
 
   const menuItems = [
-    { icon: Home, label: "Home", path: "/" },
+    { icon: Home, label: "Home", path: "/dashboard" },
     { icon: FileText, label: "Report", path: "/report" },
     { icon: HelpCircle, label: "Support", path: "/support" },
     { icon: Key, label: "Set OpenAI API Key", path: "/api-key" },
@@ -24,6 +24,7 @@ const Sidebar = ({ className = "" }: SidebarProps) => {
 
   const handleLogoutClick = () => {
     console.log("Logout clicked");
+    navigate("/login", { replace: true });
   };
 
   return (

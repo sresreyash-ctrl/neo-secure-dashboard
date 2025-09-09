@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,11 +7,19 @@ import { Label } from "@/components/ui/label";
 const Login = () => {
   const [userId, setUserId] = useState("");
   const [password, setPassword] = useState("");
+  const navigate = useNavigate();
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    // Login logic would go here
-    console.log("Login attempt:", { userId, password });
+    // Basic validation - in a real app, this would be handled by backend
+    if (userId.trim() && password.trim()) {
+      console.log("Login attempt:", { userId, password });
+      // For now, redirect to dashboard on any login attempt
+      // In production, this would validate credentials first
+      navigate("/dashboard");
+    } else {
+      alert("Please enter both User ID and Password");
+    }
   };
 
   return (
@@ -29,10 +37,10 @@ const Login = () => {
               </div>
               <h1 className="text-2xl font-bold text-blue-600">neo_security</h1>
             </div>
-            <p className="text-gray-500 text-sm mb-4">DATA SECURITY POSTURE MANAGEMENT</p>
+            {/* <p className="text-gray-500 text-sm mb-4">DATA SECURITY POSTURE MANAGEMENT</p> */}
             <h2 className="text-xl font-semibold text-gray-700 mb-2">Welcome to</h2>
             <h3 className="text-lg font-semibold text-gray-600 mb-4">An AI-Powered Cloud Compliance Solution</h3>
-            <p className="text-gray-600">Login to begin using neo_security DSPM</p>
+            {/* <p className="text-gray-600">Login to begin using neo_security DSPM</p> */}
           </div>
 
           {/* Form */}
